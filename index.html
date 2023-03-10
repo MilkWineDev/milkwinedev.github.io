@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Bolt Value Modifier</title>
+
+    <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="./favicon-16x16.png">
+
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+
+    <!-- Don't use this in production: -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/react/umd/react.production.min.js" crossorigin></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/react-dom/umd/react-dom.production.min.js" crossorigin></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/react-bootstrap@next/dist/react-bootstrap.min.js" crossorigin></script>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css"
+        integrity="sha384-rbsA2VBKQhggwzxH7pPCaAqO46MgnOM80zW1RWuH61DGLwZJEdK2Kadq2F9CUG65" crossorigin="anonymous" />
+</head>
+
+<body>
+    <div id="root"></div>
+    <script type="text/babel">
+        var Table = ReactBootstrap.Table;
+        var Container = ReactBootstrap.Container;
+        var Col = ReactBootstrap.Col;
+        var Row = ReactBootstrap.Row;
+        var planets = [
+                ["Veldin Tutorial", "202a6ba4"], ["Novalis", "202bc524"],
+                ["Aridia", "202a6adc"], ["Kerwan", "20297064"],
+                ["Eudora", "20298dac"], ["Rilgar", "202d0aac"],
+                ["Nebula 34", "202b3b94"], ["Umbris", "202cfcb4"],
+                ["Batalia", "202af684"], ["Gaspar", "202c42b4"],
+                ["Orxon", "20297a8c"], ["Pokitaru", "202caa8c"],
+                ["Hoven", "202be564"], ["Oltanis Orbit", "202b2e04"],
+                ["Oltanis", "202b0bfc"], ["Quartu", "202949e4"],
+                ["Kalebo III", "2029fa0c"], ["Veldin Orbit", "2029ecfc"],
+                ["Veldin Finale", "202a6644"]];
+
+        function GetTwoByteHex(value) {
+            return value.toString(16).padStart(4, '0');
+        }
+        function GetFourByteHex(value) {
+            return value.toString(16).padStart(8, '0');
+        }
+        function GetPlanetEntry(planetName, offset, boltVals) {
+            boltVals = boltVals.map(GetTwoByteHex);
+            let offsetVal = parseInt(offset, 16);
+            let offsetVals = [offsetVal, offsetVal + 0x14, offsetVal + 0x24, offsetVal + 0x28];
+            offsetVals = offsetVals.map(GetFourByteHex);
+            return `
+// ${planetName}
+patch=1,EE,E0040000,extended,0015ed84
+patch=1,EE,${offsetVals[0]},extended,2405${boltVals[0]}
+patch=1,EE,${offsetVals[1]},extended,2405${boltVals[3]}
+patch=1,EE,${offsetVals[2]},extended,2405${boltVals[1]}
+patch=1,EE,${offsetVals[3]},extended,2405${boltVals[2]}
+`;
+        }
+        function GetText(defaultValues, planetValues) {
+            let placeholderDefaults = [1, 5, 20, 50];
+            defaultValues = placeholderDefaults.map((val, ind) => defaultValues[ind] ?? val);
+
+            var text = "gametitle=Ratchet & Clank (USA)\ncomment=Bolt value modifier\n\n";
+            for (let i = 0; i < planets.length; i++) {
+                let boltVals = defaultValues;
+                if (i in planetValues) {
+                    let currentPlanetValues = planetValues[i];
+                    boltVals = boltVals.map((val, ind) => currentPlanetValues[ind] ?? val);
+                }
+                boltVals = boltVals.map(GetTwoByteHex);
+                text += GetPlanetEntry(planets[i][0], planets[i][1], boltVals);
+            }
+            return text;
+        }
+        class BoltValueModifier extends React.Component {
+            constructor(props) {
+                super(props);
+                this.state = {
+                    defaultValues: [null, null, null, null],
+                    planetValues: {}
+                };
+                this.handleChange = this.handleChange.bind(this);
+            }
+            handleChange(index, value) {
+                let newDefaultValues = this.state.defaultValues.slice();
+                newDefaultValues[index] = value;
+                this.setState({ defaultValues: newDefaultValues });
+            }
+            handlePlanetChange(planet, index, value) {
+                let newPlanetValues = Object.assign({},this.state.planetValues);
+                if (!(planet in newPlanetValues)) {
+                    newPlanetValues[planet] = [null, null, null, null];
+                }
+                newPlanetValues[planet][index] = value;
+                this.setState({ defaultValues: this.state.defaultValues, planetValues: newPlanetValues });
+            }
+            getPlanets() {
+                return planets.map((val, ind) =>{ return (<Planet name={val[0]} values={this.state.planetValues[ind]} onChange={(index, value) => this.handlePlanetChange(ind, index, value)}  />)});
+            }
+            render() {
+                return <Container style={{ padding: "20px" }}>
+                    <h1>Bolt Value Modifier</h1>
+                    <h5>For Ratchet and Clank 2002 (PS2) NTSC</h5>
+                    <hr />
+                    <Container>
+                        <Row>
+                            <Col>
+                                <Container>
+                                    <AllPlanet values={this.state.defaultValues} onChange={this.handleChange} />
+                                    <hr />
+                                    <h4>Overrides</h4>
+                                    {this.getPlanets()}
+                                </Container>
+                            </Col>
+                            <Col><h3>CE4933D0.pnach</h3><CheatText defaultValues={this.state.defaultValues} planetValues={this.state.planetValues} />
+                            </Col>
+                        </Row>
+                    </Container>
+                </Container>;
+            }
+        }
+
+        class CheatText extends React.Component {
+            constructor(props) {
+                super(props);
+            }
+            render() {
+                return (<textarea style={{ width: "100%", height: "100%" }} spellcheck="false" value={GetText(this.props.defaultValues,this.props.planetValues)} />);
+            }
+        }
+
+        class ValueInput extends React.Component {
+            constructor(props) {
+                super(props);
+                this.handleChange = this.handleChange.bind(this);
+            }
+            handleChange(e) {
+                if (e.target.value === "") {
+                    this.props.onChange(null);
+                    return;
+                }
+                let num = parseInt(e.target.value);
+                if (isNaN(num)) {
+                    num = 0;
+                }
+                num = Math.abs(num);
+                num = Math.min(num, 0xffff);
+                this.props.onChange(num);
+            }
+            render() {
+                return (<input style={{ width: "50px", textAlign: "center" }} placeholder={this.props.placeholder} value={this.props.value} onChange={this.handleChange} />
+                );
+            }
+        }
+
+        class AllPlanet extends React.Component {
+            constructor(props) {
+                super(props);
+                this.handleChange = this.handleChange.bind(this);
+            }
+            getSet(ind) {
+                if (this.props.values === undefined) {
+                    return false;
+                }
+                return this.props.values[ind] !== null;
+            }
+            getOpacityInput(ind) {
+                return this.getSet(ind) ? "1" : "0.5";
+            }
+            handleChange(index, value) {
+                this.props.onChange(index, value);
+            }
+            render() {
+                return (<Row>
+                    <Col lg="4"><h4>All planets</h4></Col>
+                    <Col xs="auto" style={{ opacity: this.getOpacityInput(0), padding: "4px" }}><ValueInput placeholder="1" value={this.props.values[0]} onChange={(v) => this.handleChange(0, v)} /></Col>
+                    <Col xs="auto" style={{opacity: this.getOpacityInput(1),  padding: "4px" }}><ValueInput placeholder="5" value={this.props.values[1]} onChange={(v) => this.handleChange(1, v)} /></Col>
+                    <Col xs="auto" style={{ opacity: this.getOpacityInput(2), padding: "4px" }}><ValueInput placeholder="20" value={this.props.values[2]} onChange={(v) => this.handleChange(2, v)} /></Col>
+                    <Col xs="auto" style={{ opacity: this.getOpacityInput(3), padding: "4px" }}><ValueInput placeholder="50" value={this.props.values[3]} onChange={(v) => this.handleChange(3, v)} /></Col>
+                </Row>
+                );
+            }
+        }
+        class Planet extends React.Component {
+            constructor(props) {
+                super(props);
+            }
+            getSet(ind) {
+                if (this.props.values === undefined) {
+                    return false;
+                }
+                return this.props.values[ind] !== null;
+            }
+            getEnabled() {
+                if (this.props.values === undefined) {
+                    return false;
+                }
+                for (let value of this.props.values) {
+                    if (value !== null) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            getOpacity() {
+                return this.getEnabled() ? "1" : "0.5";
+            }
+            getOpacityInput(ind) {
+                return this.getSet(ind) ? "1" : "0.5";
+            }
+            getLabelWeight() {
+                return this.getEnabled() ? "bold" : "normal";
+            }
+            handleChange(index, value) {
+                this.props.onChange(index, value);
+            }
+            render() {
+                let vals = this.props.values;
+                if (vals === undefined) {
+                    vals = [null, null, null, null];
+                }
+                return (<Row style={{ padding: "4px" }}>
+                    <Col lg="4" style={{ padding: "4px", paddingLeft: "16px", opacity: this.getOpacity(), fontWeight: this.getLabelWeight()}}>{this.props.name}</Col>
+                    <Col xs="auto" style={{ opacity: this.getOpacityInput(0), padding: "4px" }}><ValueInput placeholder="1"  value={vals[0]} onChange={(v) => this.handleChange(0, v)}  /></Col>
+                    <Col xs="auto" style={{ opacity: this.getOpacityInput(1), padding: "4px" }}><ValueInput placeholder="5" value={vals[1]} onChange={(v) => this.handleChange(1, v)} /></Col>
+                    <Col xs="auto" style={{ opacity: this.getOpacityInput(2), padding: "4px" }}><ValueInput placeholder="20" value={vals[2]} onChange={(v) => this.handleChange(2, v)} /></Col>
+                    <Col xs="auto" style={{ opacity: this.getOpacityInput(3), padding: "4px" }}><ValueInput placeholder="50" value={vals[3]} onChange={(v) => this.handleChange(3, v)} /></Col>
+                </Row>
+                );
+            }
+        }
+
+        const container = document.getElementById('root');
+        const root = ReactDOM.createRoot(container);
+        root.render(<BoltValueModifier />);
+
+    </script>
+    <!--
+      Note: this page is a great way to try React but it's not suitable for production.
+      It slowly compiles JSX with Babel in the browser and uses a large development build of React.
+
+      Read this section for a production-ready setup with JSX:
+      https://reactjs.org/docs/add-react-to-a-website.html#add-jsx-to-a-project
+
+      In a larger project, you can use an integrated toolchain that includes JSX instead:
+      https://reactjs.org/docs/create-a-new-react-app.html
+
+      You can also use React without JSX, in which case you can remove Babel:
+      https://reactjs.org/docs/react-without-jsx.html
+    -->
+</body>
+
+</html>
